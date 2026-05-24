@@ -69,6 +69,25 @@ export async function POST(request: Request) {
             }
             text = out;
           }
+          // Fallback: try external extract script if available (handles tricky PDFs)
+          if (!text && ext === '.pdf') {
+            try {
+              const cp = await import('child_process');
+              const execResult = await new Promise((resolve) => {
+                cp.execFile('node', ['scripts/extract_file.js', filePath], { cwd: process.cwd() }, (error: any, stdout: string, stderr: string) => {
+                  resolve({ error, stdout, stderr });
+                });
+              }) as any;
+              try {
+                const parsed = JSON.parse(execResult.stdout || '{}');
+                text = parsed.text || text;
+              } catch (e) {
+                console.error('extract script parse failed', execResult.stderr || execResult.stdout || e);
+              }
+            } catch (ex) {
+              console.error('extract script failed', ex);
+            }
+          }
         }
       }
     } catch (e) {
