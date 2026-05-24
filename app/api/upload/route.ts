@@ -34,35 +34,40 @@ export async function POST(request: Request) {
     const filePath = path.join(uploadsDir, outName);
     await fs.writeFile(filePath, buffer);
 
-    // Extract text (try pdf-parse, fallback to pdfjs)
+    // Extract text: handle .txt directly, then try pdf-parse/pdfjs
     let text = '';
     try {
-      const tryImport = async (name: string) => { try { return await import(name); } catch { return null; } };
-      let mod: any = await tryImport('pdf-parse') ?? await tryImport('pdf-parse/node') ?? await tryImport('pdf-parse/dist/node');
-      if (mod) {
-        if (typeof mod === 'function') {
-          const parsed = await mod(buffer as any);
-          text = parsed?.text ?? '';
-        } else if (mod.default && typeof mod.default === 'function') {
-          const parsed = await mod.default(buffer as any);
-          text = parsed?.text ?? '';
-        }
-      }
-      if (!text) {
-        const pdfjs = await tryImport('pdfjs-dist/legacy/build/pdf.mjs') ?? await tryImport('pdfjs-dist');
-        if (pdfjs) {
-          const uint8 = new Uint8Array(buffer);
-          const loadingTask = pdfjs.getDocument({ data: uint8 });
-          const doc = await loadingTask.promise;
-          let out = '';
-          for (let i = 1; i <= doc.numPages; i++) {
-            const page = await doc.getPage(i);
-            const content = await page.getTextContent();
-            const strings = content.items.map((it: any) => (typeof it.str === 'string' ? it.str : (it.toString && typeof it.toString === 'function' ? it.toString() : '')));
-            out += strings.join(' ') + '\n\n';
-            if (page.cleanup) try { page.cleanup(); } catch (_) {}
+      if (ext === '.txt') {
+        // plain text file — decode as utf-8
+        text = buffer.toString('utf8');
+      } else {
+        const tryImport = async (name: string) => { try { return await import(name); } catch { return null; } };
+        let mod: any = await tryImport('pdf-parse') ?? await tryImport('pdf-parse/node') ?? await tryImport('pdf-parse/dist/node');
+        if (mod) {
+          if (typeof mod === 'function') {
+            const parsed = await mod(buffer as any);
+            text = parsed?.text ?? '';
+          } else if (mod.default && typeof mod.default === 'function') {
+            const parsed = await mod.default(buffer as any);
+            text = parsed?.text ?? '';
           }
-          text = out;
+        }
+        if (!text) {
+          const pdfjs = await tryImport('pdfjs-dist/legacy/build/pdf.mjs') ?? await tryImport('pdfjs-dist');
+          if (pdfjs) {
+            const uint8 = new Uint8Array(buffer);
+            const loadingTask = pdfjs.getDocument({ data: uint8 });
+            const doc = await loadingTask.promise;
+            let out = '';
+            for (let i = 1; i <= doc.numPages; i++) {
+              const page = await doc.getPage(i);
+              const content = await page.getTextContent();
+              const strings = content.items.map((it: any) => (typeof it.str === 'string' ? it.str : (it.toString && typeof it.toString === 'function' ? it.toString() : '')));
+              out += strings.join(' ') + '\n\n';
+              if (page.cleanup) try { page.cleanup(); } catch (_) {}
+            }
+            text = out;
+          }
         }
       }
     } catch (e) {
