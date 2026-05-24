@@ -1,7 +1,5 @@
-import Image from "next/image";
-
 'use client';
-import Image from 'next/image';
+import Image from "next/image";
 import UploadForm from '../components/UploadForm';
 
 export default function Home() {
