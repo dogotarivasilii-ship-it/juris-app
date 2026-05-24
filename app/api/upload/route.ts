@@ -38,8 +38,9 @@ export async function POST(request: Request) {
     let text = '';
     try {
       if (ext === '.txt') {
-        // plain text file — decode as utf-8
+        // plain text file — decode as utf-8 and strip BOM if present
         text = buffer.toString('utf8');
+        if (text && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
       } else {
         const tryImport = async (name: string) => { try { return await import(name); } catch { return null; } };
         let mod: any = await tryImport('pdf-parse') ?? await tryImport('pdf-parse/node') ?? await tryImport('pdf-parse/dist/node');
